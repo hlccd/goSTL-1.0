@@ -1,0 +1,222 @@
+package bsTree
+
+//@Title		bsTree
+//@Description
+//		二叉搜索树-Binary Search Tree
+//		以二叉树的形式实现
+//		二叉树实例保存根节点和比较器以及保存的数量
+//		可以在创建时设置节点是否可重复
+//		若节点可重复则增加节点中的数值,否则对节点存储元素进行覆盖
+//		二叉搜索树不进行平衡
+//@author     	hlccd		2021-07-11
+
+import (
+	"github.com/hlccd/goSTL/utils/comparator"
+	"github.com/hlccd/goSTL/utils/iterator"
+)
+
+//bsTree二叉搜索树结构体
+//该实例存储二叉树的根节点
+//同时保存该二叉树已经存储了多少个元素
+//二叉树中排序使用的比较器在创建时传入,若不传入则在插入首个节点时从默认比较器中寻找
+//创建时传入是否允许该二叉树出现重复值,如果不允许则进行覆盖,允许则对节点数目增加即可
+type bsTree struct {
+	root    *node                 //根节点指针
+	size    int                   //存储元素数量
+	cmp     comparator.Comparator //比较器
+	isMulti bool                  //是否允许重复
+}
+
+//bsTree二叉搜索树容器接口
+//存放了bsTree二叉搜索树可使用的函数
+//对应函数介绍见下方
+type bsTreeer interface {
+	Iterator() (i *iterator.Iterator) //返回包含该二叉树的所有元素,重复则返回多个
+	Size() (num int)                  //返回该二叉树中保存的元素个数
+	Clear()                           //清空该二叉树
+	Empty() (b bool)                  //判断该二叉树是否为空
+	Insert(e interface{})             //向二叉树中插入元素e
+	Erase(e interface{})              //从二叉树中删除元素e
+	Count(e interface{}) (num int)    //从二叉树中寻找元素e并返回其个数
+}
+
+//@title    New
+//@description
+//		新建一个bsTree二叉搜索树容器并返回
+//		初始根节点为nil
+//		传入该二叉树是否为可重复属性,如果为true则保存重复值,否则对原有相等元素进行覆盖
+//		若有传入的比较器,则将传入的第一个比较器设为该二叉树的比较器
+//@author     	hlccd		2021-07-11
+//@receiver		nil
+//@param    	isMulti		bool						该二叉树是否保存重复值?
+//@param    	Cmp			 ...comparator.Comparator	bsTree比较器集
+//@return    	bt        	*bsTree						新建的bsTree指针
+func New(isMulti bool, Cmp ...comparator.Comparator) (bt *bsTree) {
+	//判断是否有传入比较器,若有则设为该二叉树默认比较器
+	var cmp comparator.Comparator
+	if len(Cmp) == 0 {
+		cmp = nil
+	} else {
+		cmp = Cmp[0]
+	}
+	return &bsTree{
+		root:    nil,
+		size:    0,
+		cmp:     cmp,
+		isMulti: isMulti,
+	}
+}
+
+//@title    Iterator
+//@description
+//		以bsTree二叉搜索树做接收者
+//		将该二叉树中所有保存的元素将从根节点开始以中缀序列的形式放入迭代器中
+//		若允许重复存储则对于重复元素进行多次放入
+//@auth      	hlccd		2021-07-11
+//@receiver		bt			*bsTree					接受者bsTree的指针
+//@param    	nil
+//@return    	i        	*iterator.Iterator		新建的Iterator迭代器指针
+func (bt *bsTree) Iterator() (i *iterator.Iterator) {
+	if bt == nil {
+		return iterator.New(make([]interface{}, 0, 0))
+	}
+	return iterator.New(bt.root.inOrder())
+}
+
+//@title    Size
+//@description
+//		以bsTree二叉搜索树做接收者
+//		返回该容器当前含有元素的数量
+//		如果容器为nil返回-1
+//@auth      	hlccd		2021-07-11
+//@receiver		bt			*bsTree					接受者bsTree的指针
+//@param    	nil
+//@return    	num        	int						容器中实际使用元素所占空间大小
+func (bt *bsTree) Size() (num int) {
+	if bt == nil {
+		return -1
+	}
+	return bt.size
+}
+
+//@title    Clear
+//@description
+//		以bsTree二叉搜索树做接收者
+//		将该容器中所承载的元素清空
+//		将该容器的size置0
+//@auth      	hlccd		2021-07-11
+//@receiver		bt			*bsTree					接受者bsTree的指针
+//@param    	nil
+//@return    	nil
+func (bt *bsTree) Clear() {
+	if bt == nil {
+		return
+	}
+	bt.root = nil
+	bt.size = 0
+}
+
+//@title    Empty
+//@description
+//		以bsTree二叉搜索树做接收者
+//		判断该二叉搜索树是否含有元素
+//		如果含有元素则不为空,返回false
+//		如果不含有元素则说明为空,返回true
+//		如果容器不存在,返回true
+//@auth      	hlccd		2021-07-11
+//@receiver		bt			*bsTree					接受者bsTree的指针
+//@param    	nil
+//@return    	b			bool					该容器是空的吗?
+func (bt *bsTree) Empty() (b bool) {
+	if bt == nil {
+		return true
+	}
+	if bt.size > 0 {
+		return false
+	}
+	return true
+}
+
+//@title    Insert
+//@description
+//		以bsTree二叉搜索树做接收者
+//		向二叉树插入元素e,若不允许重复则对相等元素进行覆盖
+//		如果二叉树为空则之间用根节点承载元素e,否则以根节点开始进行查找
+//		不做平衡
+//@auth      	hlccd		2021-07-11
+//@receiver		bt			*bsTree					接受者bsTree的指针
+//@param    	e			interface{}				待插入元素
+//@return    	nil
+func (bt *bsTree) Insert(e interface{}) {
+	if bt == nil {
+		return
+	}
+	if bt.Empty() {
+		//二叉树为空,用根节点承载元素e
+		if bt.cmp == nil {
+			bt.cmp = comparator.GetCmp(e)
+		}
+		if bt.cmp == nil {
+			return
+		}
+		bt.root = newNode(e)
+		bt.size++
+		return
+	}
+	//二叉树不为空,从根节点开始查找添加元素e
+	if bt.root.insert(e, bt.isMulti, bt.cmp) {
+		bt.size++
+	}
+}
+
+//@title    Erase
+//@description
+//		以bsTree二叉搜索树做接收者
+//		从搜素二叉树中删除元素e
+//		若允许重复记录则对承载元素e的节点中数量记录减一即可
+//		若不允许重复记录则删除该节点同时将前缀节点或后继节点更换过来以保证二叉树的不发送断裂
+//		如果该二叉树仅持有一个元素且根节点等价于待删除元素,则将二叉树根节点置为nil
+//@auth      	hlccd		2021-07-11
+//@receiver		bt			*bsTree					接受者bsTree的指针
+//@param    	e			interface{}				待删除元素
+//@return    	nil
+func (bt *bsTree) Erase(e interface{}) {
+	if bt == nil {
+		return
+	}
+	if bt.size == 1 && bt.cmp(bt.root.value, e) == 0 {
+		//二叉树仅持有一个元素且根节点等价于待删除元素,将二叉树根节点置为nil
+		bt.root = nil
+		bt.size = 0
+		return
+	}
+	//从根节点开始删除元素e
+	//如果删除成功则将size-1
+	if bt.root.delete(e, bt.isMulti, bt.cmp) {
+		bt.size--
+	}
+}
+
+//@title    Count
+//@description
+//		以bsTree二叉搜索树做接收者
+//		从搜素二叉树中查找元素e的个数
+//		如果找到则返回该二叉树中和元素e相同元素的个数
+//		如果不允许重复则最多返回1
+//		如果未找到则返回0
+//@auth      	hlccd		2021-07-11
+//@receiver		bt			*bsTree					接受者bsTree的指针
+//@param    	e			interface{}				待查找元素
+//@return    	num			int						待查找元素在二叉树中存储的个数
+func (bt *bsTree) Count(e interface{}) (num int) {
+	if bt == nil {
+		//二叉树不存在,返回0
+		return 0
+	}
+	if bt.Empty() {
+		//二叉树为空,返回0
+		return 0
+	}
+	//从根节点开始查找并返回查找结果
+	return bt.root.search(e, bt.isMulti, bt.cmp)
+}
