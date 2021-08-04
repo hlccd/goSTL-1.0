@@ -9,9 +9,11 @@ package heap
 //		该集合只能对于相等元素可以存储多个
 //		可接纳不同类型的元素,但为了便于比较,建议使用同一个类型
 //@author     	hlccd		2021-07-10
+//@update		hlccd 		2021-08-01		增加互斥锁实现并发控制
 import (
 	"github.com/hlccd/goSTL/utils/comparator"
 	"github.com/hlccd/goSTL/utils/iterator"
+	"sync"
 )
 
 //heap堆集合结构体
@@ -20,6 +22,7 @@ import (
 type heap struct {
 	data []interface{}         //泛型切片
 	cmp  comparator.Comparator //该堆的比较器
+	mutex   sync.Mutex            //并发控制锁
 }
 
 //heap堆容器接口
@@ -54,6 +57,7 @@ func New(cmps ...comparator.Comparator) (h *heap) {
 	return &heap{
 		data: make([]interface{}, 0, 0),
 		cmp:  cmp,
+		mutex:   sync.Mutex{},
 	}
 }
 
@@ -69,7 +73,10 @@ func (h *heap) Iterator() (i *iterator.Iterator) {
 	if h == nil {
 		return iterator.New(make([]interface{}, 0, 0))
 	}
-	return iterator.New(h.data)
+	h.mutex.Lock()
+	i=iterator.New(h.data)
+	h.mutex.Unlock()
+	return i
 }
 
 //@title    Size
@@ -100,7 +107,9 @@ func (h *heap) Clear() {
 	if h == nil {
 		return
 	}
+	h.mutex.Lock()
 	h.data = h.data[0:0]
+	h.mutex.Unlock()
 }
 
 //@title    Empty
@@ -134,6 +143,7 @@ func (h *heap) Push(e interface{}) {
 	if h == nil {
 		return
 	}
+	h.mutex.Lock()
 	if h.cmp == nil {
 		h.cmp = comparator.GetCmp(e)
 	}
@@ -142,6 +152,7 @@ func (h *heap) Push(e interface{}) {
 	}
 	h.data = append(h.data, e)
 	h.up(len(h.data) - 1)
+	h.mutex.Unlock()
 }
 
 //@title    up
@@ -175,6 +186,7 @@ func (h *heap) Pop() {
 	if h == nil {
 		return
 	}
+	h.mutex.Lock()
 	if h.Empty() {
 		return
 	}
@@ -184,6 +196,7 @@ func (h *heap) Pop() {
 		return
 	}
 	h.down(0)
+	h.mutex.Unlock()
 }
 
 //@title    down
@@ -225,5 +238,8 @@ func (h *heap) Top() (e interface{}) {
 	if h.Empty() {
 		return nil
 	}
-	return h.data[0]
+	h.mutex.Lock()
+	e=h.data[0]
+	h.mutex.Unlock()
+	return e
 }

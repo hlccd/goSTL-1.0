@@ -9,10 +9,12 @@ package bsTree
 //		若节点可重复则增加节点中的数值,否则对节点存储元素进行覆盖
 //		二叉搜索树不进行平衡
 //@author     	hlccd		2021-07-11
+//@update		hlccd 		2021-08-01		增加互斥锁实现并发控制
 
 import (
 	"github.com/hlccd/goSTL/utils/comparator"
 	"github.com/hlccd/goSTL/utils/iterator"
+	"sync"
 )
 
 //bsTree二叉搜索树结构体
@@ -25,6 +27,7 @@ type bsTree struct {
 	size    int                   //存储元素数量
 	cmp     comparator.Comparator //比较器
 	isMulti bool                  //是否允许重复
+	mutex   sync.Mutex            //并发控制锁
 }
 
 //bsTree二叉搜索树容器接口
@@ -50,8 +53,8 @@ type bsTreeer interface {
 //@receiver		nil
 //@param    	isMulti		bool						该二叉树是否保存重复值?
 //@param    	Cmp			 ...comparator.Comparator	bsTree比较器集
-//@return    	bt        	*bsTree						新建的bsTree指针
-func New(isMulti bool, Cmp ...comparator.Comparator) (bt *bsTree) {
+//@return    	bs        	*bsTree						新建的bsTree指针
+func New(isMulti bool, Cmp ...comparator.Comparator) (bs *bsTree) {
 	//判断是否有传入比较器,若有则设为该二叉树默认比较器
 	var cmp comparator.Comparator
 	if len(Cmp) == 0 {
@@ -64,6 +67,7 @@ func New(isMulti bool, Cmp ...comparator.Comparator) (bt *bsTree) {
 		size:    0,
 		cmp:     cmp,
 		isMulti: isMulti,
+		mutex:   sync.Mutex{},
 	}
 }
 
@@ -76,11 +80,14 @@ func New(isMulti bool, Cmp ...comparator.Comparator) (bt *bsTree) {
 //@receiver		bt			*bsTree					接受者bsTree的指针
 //@param    	nil
 //@return    	i        	*iterator.Iterator		新建的Iterator迭代器指针
-func (bt *bsTree) Iterator() (i *iterator.Iterator) {
-	if bt == nil {
+func (bs *bsTree) Iterator() (i *iterator.Iterator) {
+	if bs == nil {
 		return iterator.New(make([]interface{}, 0, 0))
 	}
-	return iterator.New(bt.root.inOrder())
+	bs.mutex.Lock()
+	i = iterator.New(bs.root.inOrder())
+	bs.mutex.Unlock()
+	return i
 }
 
 //@title    Size
@@ -92,11 +99,11 @@ func (bt *bsTree) Iterator() (i *iterator.Iterator) {
 //@receiver		bt			*bsTree					接受者bsTree的指针
 //@param    	nil
 //@return    	num        	int						容器中实际使用元素所占空间大小
-func (bt *bsTree) Size() (num int) {
-	if bt == nil {
+func (bs *bsTree) Size() (num int) {
+	if bs == nil {
 		return -1
 	}
-	return bt.size
+	return bs.size
 }
 
 //@title    Clear
@@ -108,12 +115,14 @@ func (bt *bsTree) Size() (num int) {
 //@receiver		bt			*bsTree					接受者bsTree的指针
 //@param    	nil
 //@return    	nil
-func (bt *bsTree) Clear() {
-	if bt == nil {
+func (bs *bsTree) Clear() {
+	if bs == nil {
 		return
 	}
-	bt.root = nil
-	bt.size = 0
+	bs.mutex.Lock()
+	bs.root = nil
+	bs.size = 0
+	bs.mutex.Unlock()
 }
 
 //@title    Empty
@@ -127,11 +136,11 @@ func (bt *bsTree) Clear() {
 //@receiver		bt			*bsTree					接受者bsTree的指针
 //@param    	nil
 //@return    	b			bool					该容器是空的吗?
-func (bt *bsTree) Empty() (b bool) {
-	if bt == nil {
+func (bs *bsTree) Empty() (b bool) {
+	if bs == nil {
 		return true
 	}
-	if bt.size > 0 {
+	if bs.size > 0 {
 		return false
 	}
 	return true
@@ -147,26 +156,29 @@ func (bt *bsTree) Empty() (b bool) {
 //@receiver		bt			*bsTree					接受者bsTree的指针
 //@param    	e			interface{}				待插入元素
 //@return    	nil
-func (bt *bsTree) Insert(e interface{}) {
-	if bt == nil {
+func (bs *bsTree) Insert(e interface{}) {
+	if bs == nil {
 		return
 	}
-	if bt.Empty() {
+	bs.mutex.Lock()
+	if bs.Empty() {
 		//二叉树为空,用根节点承载元素e
-		if bt.cmp == nil {
-			bt.cmp = comparator.GetCmp(e)
+		if bs.cmp == nil {
+			bs.cmp = comparator.GetCmp(e)
 		}
-		if bt.cmp == nil {
+		if bs.cmp == nil {
 			return
 		}
-		bt.root = newNode(e)
-		bt.size++
+		bs.root = newNode(e)
+		bs.size++
+		bs.mutex.Unlock()
 		return
 	}
 	//二叉树不为空,从根节点开始查找添加元素e
-	if bt.root.insert(e, bt.isMulti, bt.cmp) {
-		bt.size++
+	if bs.root.insert(e, bs.isMulti, bs.cmp) {
+		bs.size++
 	}
+	bs.mutex.Unlock()
 }
 
 //@title    Erase
@@ -180,21 +192,27 @@ func (bt *bsTree) Insert(e interface{}) {
 //@receiver		bt			*bsTree					接受者bsTree的指针
 //@param    	e			interface{}				待删除元素
 //@return    	nil
-func (bt *bsTree) Erase(e interface{}) {
-	if bt == nil {
+func (bs *bsTree) Erase(e interface{}) {
+	if bs == nil {
 		return
 	}
-	if bt.size == 1 && bt.cmp(bt.root.value, e) == 0 {
+	if bs.Empty() {
+		return
+	}
+	bs.mutex.Lock()
+	if bs.size == 1 && bs.cmp(bs.root.value, e) == 0 {
 		//二叉树仅持有一个元素且根节点等价于待删除元素,将二叉树根节点置为nil
-		bt.root = nil
-		bt.size = 0
+		bs.root = nil
+		bs.size = 0
+		bs.mutex.Unlock()
 		return
 	}
 	//从根节点开始删除元素e
 	//如果删除成功则将size-1
-	if bt.root.delete(e, bt.isMulti, bt.cmp) {
-		bt.size--
+	if bs.root.delete(e, bs.isMulti, bs.cmp) {
+		bs.size--
 	}
+	bs.mutex.Unlock()
 }
 
 //@title    Count
@@ -208,15 +226,18 @@ func (bt *bsTree) Erase(e interface{}) {
 //@receiver		bt			*bsTree					接受者bsTree的指针
 //@param    	e			interface{}				待查找元素
 //@return    	num			int						待查找元素在二叉树中存储的个数
-func (bt *bsTree) Count(e interface{}) (num int) {
-	if bt == nil {
+func (bs *bsTree) Count(e interface{}) (num int) {
+	if bs == nil {
 		//二叉树不存在,返回0
 		return 0
 	}
-	if bt.Empty() {
+	if bs.Empty() {
 		//二叉树为空,返回0
 		return 0
 	}
+	bs.mutex.Lock()
 	//从根节点开始查找并返回查找结果
-	return bt.root.search(e, bt.isMulti, bt.cmp)
+	num = bs.root.search(e, bs.isMulti, bs.cmp)
+	bs.mutex.Unlock()
+	return num
 }

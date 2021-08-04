@@ -7,7 +7,7 @@ package iterator
 //		对于基于泛型切片实现的容器可进行修改
 //		如vector、stack、queue、deque、heap、set、multiset、ring
 //		但除开vector，其他类型不建议使用迭代器进行修改
-//@author     	hlccd		2021-07-1
+//@author     	hlccd		2021-07-01
 
 //Iterator迭代器
 //包含泛型切片和该迭代器当前指向元素的下标

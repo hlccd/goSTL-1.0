@@ -8,9 +8,11 @@ package cbTree
 //		将最小的元素放在堆顶
 //		该结构只保留整个树的根节点,其他节点通过根节点进行查找获得
 //@author     	hlccd		2021-07-14
+//@update		hlccd 		2021-08-01		增加互斥锁实现并发控制
 import (
 	"github.com/hlccd/goSTL/utils/comparator"
 	"github.com/hlccd/goSTL/utils/iterator"
+	"sync"
 )
 
 //cbTree完全二叉树树结构体
@@ -18,9 +20,10 @@ import (
 //同时保存该二叉树已经存储了多少个元素
 //二叉树中排序使用的比较器在创建时传入,若不传入则在插入首个节点时从默认比较器中寻找
 type cbTree struct {
-	root *node                 //根节点指针
-	size int                   //存储元素数量
-	cmp  comparator.Comparator //比较器
+	root  *node                 //根节点指针
+	size  int                   //存储元素数量
+	cmp   comparator.Comparator //比较器
+	mutex sync.Mutex            //并发控制锁
 }
 
 //cbTree二叉搜索树容器接口
@@ -52,9 +55,10 @@ func New(Cmp ...comparator.Comparator) (cb *cbTree) {
 		cmp = Cmp[0]
 	}
 	return &cbTree{
-		root: nil,
-		size: 0,
-		cmp:  cmp,
+		root:  nil,
+		size:  0,
+		cmp:   cmp,
+		mutex: sync.Mutex{},
 	}
 }
 
@@ -70,7 +74,10 @@ func (cb *cbTree) Iterator() (i *iterator.Iterator) {
 	if cb == nil {
 		return iterator.New(make([]interface{}, 0, 0))
 	}
-	return iterator.New(cb.root.frontOrder())
+	cb.mutex.Lock()
+	i = iterator.New(cb.root.frontOrder())
+	cb.mutex.Unlock()
+	return i
 }
 
 //@title    Size
@@ -102,8 +109,10 @@ func (cb *cbTree) Clear() {
 	if cb == nil {
 		return
 	}
+	cb.mutex.Lock()
 	cb.root = nil
 	cb.size = 0
+	cb.mutex.Unlock()
 }
 
 //@title    Empty
@@ -137,19 +146,24 @@ func (cb *cbTree) Empty() (b bool) {
 //@param    	e			interface{}				待插入元素
 //@return    	nil
 func (cb *cbTree) Push(e interface{}) {
-	if cb.cmp == nil {
-		cb.cmp = comparator.GetCmp(e)
-	}
-	if cb.cmp == nil {
+	if cb == nil {
 		return
 	}
+	cb.mutex.Lock()
 	if cb.Empty() {
+		if cb.cmp == nil {
+			cb.cmp = comparator.GetCmp(e)
+		}
+		if cb.cmp == nil {
+			return
+		}
 		cb.root = newNode(nil, e)
 		cb.size++
 	} else {
 		cb.size++
 		cb.root.insert(cb.size, e, cb.cmp)
 	}
+	cb.mutex.Unlock()
 }
 
 //@title    Pop
@@ -164,9 +178,13 @@ func (cb *cbTree) Push(e interface{}) {
 //@param    	nil
 //@return    	nil
 func (cb *cbTree) Pop() {
+	if cb == nil {
+		return
+	}
 	if cb.Empty() {
 		return
 	}
+	cb.mutex.Lock()
 	if cb.size == 1 {
 		//该二叉树仅剩根节点,直接删除即可
 		cb.root = nil
@@ -175,6 +193,7 @@ func (cb *cbTree) Pop() {
 		cb.root.delete(cb.size, cb.cmp)
 	}
 	cb.size--
+	cb.mutex.Unlock()
 }
 
 //@title    Top
@@ -190,5 +209,8 @@ func (cb *cbTree) Top() (e interface{}) {
 	if cb == nil {
 		return nil
 	}
-	return cb.root.value
+	cb.mutex.Lock()
+	e = cb.root.value
+	cb.mutex.Unlock()
+	return e
 }

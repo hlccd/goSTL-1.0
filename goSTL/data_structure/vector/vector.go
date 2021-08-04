@@ -10,9 +10,11 @@ package vector
 //		但建议在同一个vector中使用相同类型的元素
 //		可通过配合比较器competitor和迭代器iterator对该vector容器进行排序或查找
 //@author     	hlccd		2021-07-4
+//@update		hlccd 		2021-08-01		增加互斥锁实现并发控制
 
 import (
 	"github.com/hlccd/goSTL/utils/iterator"
+	"sync"
 )
 
 //vector向量结构体
@@ -23,8 +25,9 @@ import (
 //当添加节点时尾指针大于已分配空间长度,则新增空间
 
 type vector struct {
-	data []interface{} //泛型切片
-	end  int           //尾指针
+	data  []interface{} //泛型切片
+	end   int           //尾指针
+	mutex sync.Mutex    //并发控制锁
 }
 
 //vector向量容器接口
@@ -57,8 +60,9 @@ type vectorer interface {
 //@return    	v        	*vector					新建的vector指针
 func New() (v *vector) {
 	return &vector{
-		data: make([]interface{}, 0, 0),
-		end:  0,
+		data:  make([]interface{}, 0, 0),
+		end:   0,
+		mutex: sync.Mutex{},
 	}
 }
 
@@ -75,12 +79,15 @@ func (v *vector) Iterator() (i *iterator.Iterator) {
 	if v == nil {
 		v.data = make([]interface{}, 0, 0)
 	}
+	v.mutex.Lock()
 	if v.end > 0 {
 		v.data = v.data[:v.end]
 	} else {
 		v.data = make([]interface{}, 0, 0)
 	}
-	return iterator.New(v.data)
+	i = iterator.New(v.data)
+	v.mutex.Unlock()
+	return i
 }
 
 //@title    Size
@@ -113,8 +120,10 @@ func (v *vector) Clear() {
 	if v == nil {
 		return
 	}
+	v.mutex.Lock()
 	v.data = v.data[0:0]
 	v.end = 0
+	v.mutex.Unlock()
 }
 
 //@title    Empty
@@ -152,12 +161,14 @@ func (v *vector) PushBack(e interface{}) {
 	if v == nil {
 		return
 	}
+	v.mutex.Lock()
 	if v.end < len(v.data) {
 		v.data[v.end] = e
 	} else {
 		v.data = append(v.data, e)
 	}
 	v.end++
+	v.mutex.Unlock()
 }
 
 //@title    PopBack
@@ -177,10 +188,12 @@ func (v *vector) PopBack() {
 	if v.Empty() {
 		return
 	}
+	v.mutex.Lock()
 	v.end--
 	if v.end*2 <= len(v.data) {
 		v.data = v.data[0:v.end]
 	}
+	v.mutex.Unlock()
 }
 
 //@title    Insert
@@ -201,6 +214,7 @@ func (v *vector) Insert(idx int, e interface{}) {
 	if v == nil {
 		return
 	}
+	v.mutex.Lock()
 	if idx <= 0 {
 		v.data = append(append([]interface{}{}, e), v.data[:v.end]...)
 		v.end++
@@ -211,6 +225,7 @@ func (v *vector) Insert(idx int, e interface{}) {
 		v.data = append(append(v.data[:idx], e), es...)
 		v.end++
 	}
+	v.mutex.Unlock()
 }
 
 //@title    Erase
@@ -233,6 +248,7 @@ func (v *vector) Erase(idx int) {
 	if v.Empty() {
 		return
 	}
+	v.mutex.Lock()
 	idx++
 	if idx <= 1 {
 		idx = 1
@@ -242,6 +258,7 @@ func (v *vector) Erase(idx int) {
 	es := append([]interface{}{}, v.data[:idx-1]...)
 	v.data = append(es, v.data[idx:]...)
 	v.end--
+	v.mutex.Unlock()
 }
 
 //@title    Reverse
@@ -257,6 +274,7 @@ func (v *vector) Reverse() {
 	if v == nil {
 		return
 	}
+	v.mutex.Lock()
 	if v.end > 0 {
 		v.data = v.data[:v.end]
 	} else {
@@ -265,6 +283,7 @@ func (v *vector) Reverse() {
 	for i := 0; i < v.end/2; i++ {
 		v.data[i], v.data[v.end-i-1] = v.data[v.end-i-1], v.data[i]
 	}
+	v.mutex.Unlock()
 }
 
 //@title    At
@@ -283,12 +302,17 @@ func (v *vector) At(idx int) (e interface{}) {
 	if v == nil {
 		return nil
 	}
+	v.mutex.Lock()
 	if idx < 0 && idx >= v.Size() {
+		v.mutex.Unlock()
 		return nil
 	}
 	if v.Size() > 0 {
-		return v.data[idx]
+		e = v.data[idx]
+		v.mutex.Unlock()
+		return e
 	}
+	v.mutex.Unlock()
 	return nil
 }
 
@@ -305,9 +329,13 @@ func (v *vector) Front() (e interface{}) {
 	if v == nil {
 		return nil
 	}
+	v.mutex.Lock()
 	if v.Size() > 0 {
-		return v.data[0]
+		e = v.data[0]
+		v.mutex.Unlock()
+		return e
 	}
+	v.mutex.Unlock()
 	return nil
 }
 
@@ -324,8 +352,12 @@ func (v *vector) Back() (e interface{}) {
 	if v == nil {
 		return nil
 	}
+	v.mutex.Lock()
 	if v.Size() > 0 {
-		return v.data[v.end-1]
+		e = v.data[v.end-1]
+		v.mutex.Unlock()
+		return e
 	}
+	v.mutex.Unlock()
 	return nil
 }

@@ -9,9 +9,11 @@ package rbTree
 //		若节点可重复则增加节点中的数值,否则对节点存储元素进行覆盖
 //		红黑树在添加和删除时都将对节点进行平衡,从根节点到任意叶子节点经过的黑节点数目相同
 //@author     	hlccd		2021-07-23
+//@update		hlccd 		2021-08-01		增加互斥锁实现并发控制
 import (
 	"github.com/hlccd/goSTL/utils/comparator"
 	"github.com/hlccd/goSTL/utils/iterator"
+	"sync"
 )
 
 //rbTree红黑树结构体
@@ -24,6 +26,7 @@ type rbTree struct {
 	size    int
 	cmp     comparator.Comparator
 	isMulti bool
+	mutex   sync.Mutex //并发控制锁
 }
 
 //rbTree红黑树容器接口
@@ -63,6 +66,7 @@ func New(isMulti bool, cmps ...comparator.Comparator) (rb *rbTree) {
 		size:    0,
 		cmp:     cmp,
 		isMulti: isMulti,
+		mutex:   sync.Mutex{},
 	}
 }
 
@@ -79,7 +83,10 @@ func (rb *rbTree) Iterator() (i *iterator.Iterator) {
 	if rb == nil {
 		return iterator.New(make([]interface{}, 0, 0))
 	}
-	return iterator.New(rb.root.inOrder())
+	rb.mutex.Lock()
+	i = iterator.New(rb.root.inOrder())
+	rb.mutex.Unlock()
+	return i
 }
 
 //@title    Size
@@ -111,8 +118,10 @@ func (rb *rbTree) Clear() {
 	if rb == nil {
 		return
 	}
+	rb.mutex.Lock()
 	rb.root = nil
 	rb.size = 0
+	rb.mutex.Unlock()
 }
 
 //@title    Empty
@@ -150,22 +159,25 @@ func (rb *rbTree) Insert(e interface{}) {
 	if rb == nil {
 		return
 	}
-	if rb.cmp == nil {
-		rb.cmp = comparator.GetCmp(e)
-	}
-	if rb.cmp == nil {
-		return
-	}
+	rb.mutex.Lock()
 	if rb.Empty() {
+		if rb.cmp == nil {
+			rb.cmp = comparator.GetCmp(e)
+		}
+		if rb.cmp == nil {
+			return
+		}
 		//红黑树为空,用根节点承载元素e
 		rb.root = newNode(nil, e)
 		rb.root.color = BLACK
 		rb.size = 1
+		rb.mutex.Unlock()
 		return
 	}
 	if rb.root.insert(e, rb.isMulti, rb.cmp) {
 		rb.size++
 	}
+	rb.mutex.Unlock()
 }
 
 //@title    Erase
@@ -186,17 +198,20 @@ func (rb *rbTree) Erase(e interface{}) {
 	if rb.Empty() {
 		return
 	}
+	rb.mutex.Lock()
 	if rb.size == 1 && rb.root.value == e {
 		//删除跟节点
 		rb.root = nil
 		rb.size = 0
+		rb.mutex.Unlock()
 		return
 	}
 	//删除元素e
-	if rb.root.delete(e,rb.cmp){
+	if rb.root.delete(e, rb.cmp) {
 		//删除成功
 		rb.size--
 	}
+	rb.mutex.Unlock()
 }
 
 //@title    Count
@@ -217,5 +232,8 @@ func (rb *rbTree) Count(e interface{}) (num int) {
 	if rb.Empty() {
 		return 0
 	}
-	return rb.root.search(e, rb.cmp)
+	rb.mutex.Lock()
+	num = rb.root.search(e, rb.cmp)
+	rb.mutex.Unlock()
+	return num
 }

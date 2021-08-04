@@ -10,10 +10,12 @@ package treap
 //		可接纳不同类型的元素,但建议在同一个树堆中使用相同类型的元素
 //		配合比较器实现元素之间的大小比较
 //@author     	hlccd		2021-07-16
+//@update		hlccd 		2021-08-01		增加互斥锁实现并发控制
 import (
 	"github.com/hlccd/goSTL/utils/comparator"
 	"github.com/hlccd/goSTL/utils/iterator"
 	"math/rand"
+	"sync"
 	"time"
 )
 
@@ -29,6 +31,7 @@ type treap struct {
 	cmp     comparator.Comparator //比较器
 	rand    *rand.Rand            //随机数生成器
 	isMulti bool                  //是否允许重复
+	mutex   sync.Mutex            //并发控制锁
 }
 
 //treap树堆容器接口
@@ -69,6 +72,7 @@ func New(isMulti bool, Cmp ...comparator.Comparator) (t *treap) {
 		cmp:     cmp,
 		rand:    r,
 		isMulti: isMulti,
+		mutex:   sync.Mutex{},
 	}
 }
 
@@ -85,7 +89,10 @@ func (t *treap) Iterator() (i *iterator.Iterator) {
 	if t == nil {
 		return iterator.New(make([]interface{}, 0, 0))
 	}
-	return iterator.New(t.root.inOrder())
+	t.mutex.Lock()
+	i = iterator.New(t.root.inOrder())
+	t.mutex.Unlock()
+	return i
 }
 
 //@title    Size
@@ -117,8 +124,10 @@ func (t *treap) Clear() {
 	if t == nil {
 		return
 	}
+	t.mutex.Lock()
 	t.root = nil
 	t.size = 0
+	t.mutex.Unlock()
 }
 
 //@title    Empty
@@ -157,24 +166,26 @@ func (t *treap) Insert(e interface{}) {
 	if t == nil {
 		return
 	}
-	//判断比较器是否存在
-	if t.cmp == nil {
-		t.cmp = comparator.GetCmp(e)
-	}
-	if t.cmp == nil {
-		return
-	}
-	//开始插入节点
+	t.mutex.Lock()
 	if t.Empty() {
+		//判断比较器是否存在
+		if t.cmp == nil {
+			t.cmp = comparator.GetCmp(e)
+		}
+		if t.cmp == nil {
+			return
+		}
 		//插入到根节点
 		t.root = newNode(e, t.rand)
 		t.size = 1
+		t.mutex.Unlock()
 		return
 	}
 	//从根节点向下插入
 	if t.root.insert(newNode(e, t.rand), t.isMulti, t.cmp) {
 		t.size++
 	}
+	t.mutex.Unlock()
 }
 
 //@title    Erase
@@ -190,14 +201,19 @@ func (t *treap) Insert(e interface{}) {
 //@param    	e			interface{}				待删除元素
 //@return    	nil
 func (t *treap) Erase(e interface{}) {
+	if t == nil {
+		return
+	}
 	if t.Empty() {
 		//容器为空,直接退出
 		return
 	}
+	t.mutex.Lock()
 	if t.size == 1 && t.cmp(t.root.value, e) == 0 {
 		//该树堆仅持有一个元素且根节点等价于待删除元素,则将根节点置为nil
 		t.root = nil
 		t.size = 0
+		t.mutex.Unlock()
 		return
 	}
 	//从根节点开始删除元素
@@ -205,6 +221,7 @@ func (t *treap) Erase(e interface{}) {
 		//删除成功
 		t.size--
 	}
+	t.mutex.Unlock()
 }
 
 //@title    Count
@@ -223,6 +240,12 @@ func (t *treap) Count(e interface{}) (num int) {
 		//树堆不存在,直接返回0
 		return 0
 	}
+	if t.Empty() {
+		return
+	}
+	t.mutex.Lock()
+	num = t.root.search(e, t.cmp)
+	t.mutex.Unlock()
 	//树堆存在,从根节点开始查找该元素
-	return t.root.search(e, t.cmp)
+	return num
 }

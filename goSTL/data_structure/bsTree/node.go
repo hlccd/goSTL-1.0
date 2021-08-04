@@ -198,8 +198,8 @@ func (n *node) delete(e interface{}, isMulti bool, cmp comparator.Comparator) (b
 			for tn.left.left != nil {
 				tn = tn.left
 			}
-			n.value = tn.right.value
-			n.num = tn.right.num
+			n.value = tn.left.value
+			n.num = tn.left.num
 			tn.left = tn.left.right
 		}
 		return true

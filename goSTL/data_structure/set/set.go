@@ -9,18 +9,21 @@ package set
 //		该集合只能对于相等元素仅能存储一个
 //		可接纳不同类型的元素,但为了便于比较,建议使用同一个类型
 //@author     	hlccd		2021-07-9
+//@update		hlccd 		2021-08-01		增加互斥锁实现并发控制
 import (
 	"github.com/hlccd/goSTL/algorithm"
 	"github.com/hlccd/goSTL/utils/comparator"
 	"github.com/hlccd/goSTL/utils/iterator"
+	"sync"
 )
 
 //set集合结构体
 //包含泛型切片和比较器
 //增删节点后会使用比较器保持该切片数组的有序性
 type set struct {
-	data []interface{}         //泛型切片
-	cmp  comparator.Comparator //该集合的比较器
+	data  []interface{}         //泛型切片
+	cmp   comparator.Comparator //该集合的比较器
+	mutex sync.Mutex            //并发控制锁
 }
 
 //set集合容器接口
@@ -54,8 +57,9 @@ func New(Cmp ...comparator.Comparator) (s *set) {
 		cmp = Cmp[0]
 	}
 	return &set{
-		data: make([]interface{}, 0, 0),
-		cmp:  cmp,
+		data:  make([]interface{}, 0, 0),
+		cmp:   cmp,
+		mutex: sync.Mutex{},
 	}
 }
 
@@ -71,7 +75,10 @@ func (s *set) Iterator() (i *iterator.Iterator) {
 	if s == nil {
 		return iterator.New(make([]interface{}, 0, 0))
 	}
-	return iterator.New(s.data)
+	s.mutex.Lock()
+	i = iterator.New(s.data)
+	s.mutex.Unlock()
+	return i
 }
 
 //@title    Size
@@ -102,7 +109,9 @@ func (s *set) Clear() {
 	if s == nil {
 		return
 	}
+	s.mutex.Lock()
 	s.data = s.data[0:0]
+	s.mutex.Unlock()
 }
 
 //@title    Empty
@@ -136,6 +145,7 @@ func (s *set) Insert(e interface{}) {
 	if s == nil {
 		return
 	}
+	s.mutex.Lock()
 	if s.Empty() {
 		s.data = append(s.data, e)
 	} else {
@@ -162,6 +172,7 @@ func (s *set) Insert(e interface{}) {
 			}
 		}
 	}
+	s.mutex.Unlock()
 }
 
 //@title    Erase
@@ -176,6 +187,7 @@ func (s *set) Erase(e interface{}) {
 	if s == nil {
 		return
 	}
+	s.mutex.Lock()
 	p := algorithm.Search(s.Iterator().Begin(), s.Iterator().End(), e, s.cmp)
 	if p != -1 {
 		if len(s.data) == 1 {
@@ -189,6 +201,7 @@ func (s *set) Erase(e interface{}) {
 			}
 		}
 	}
+	s.mutex.Unlock()
 }
 
 //@title    Count
@@ -203,10 +216,13 @@ func (s *set) Count(e interface{}) (num int) {
 	if s == nil {
 		return 0
 	}
+	s.mutex.Lock()
 	p := algorithm.Search(s.Iterator().Begin(), s.Iterator().End(), e, s.cmp)
 	if p != -1 {
+		s.mutex.Unlock()
 		return 1
 	}
+	s.mutex.Unlock()
 	return 0
 }
 
@@ -223,9 +239,12 @@ func (s *set) Find(e interface{}) (i *iterator.Iterator) {
 	if s == nil {
 		return nil
 	}
+	s.mutex.Lock()
 	p := algorithm.Search(s.Iterator().Begin(), s.Iterator().End(), e, s.cmp)
 	if p != -1 {
+		s.mutex.Unlock()
 		return s.Iterator().Get(p)
 	}
+	s.mutex.Unlock()
 	return nil
 }

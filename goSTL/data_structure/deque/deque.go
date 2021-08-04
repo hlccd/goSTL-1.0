@@ -8,7 +8,11 @@ package deque
 //		通过interface实现泛型
 //		可接纳不同类型的元素
 //@author     	hlccd		2021-07-6
-import "github.com/hlccd/goSTL/utils/iterator"
+//@update		hlccd 		2021-08-01		增加互斥锁实现并发控制
+import (
+	"github.com/hlccd/goSTL/utils/iterator"
+	"sync"
+)
 
 //deque双向队列结构体
 //包含泛型切片和该切片的首尾指针
@@ -21,6 +25,7 @@ type deque struct {
 	data  []interface{} //泛型切片
 	begin int           //首节点指针
 	end   int           //尾节点指针
+	mutex sync.Mutex    //并发控制锁
 }
 
 //deque双向队列容器接口
@@ -53,6 +58,7 @@ func New() *deque {
 		data:  make([]interface{}, 0, 0),
 		begin: 0,
 		end:   0,
+		mutex: sync.Mutex{},
 	}
 }
 
@@ -69,10 +75,13 @@ func (d *deque) Iterator() (i *iterator.Iterator) {
 	if d == nil {
 		return iterator.New(make([]interface{}, 0, 0))
 	}
+	d.mutex.Lock()
 	d.data = d.data[d.begin:d.end]
 	d.begin = 0
 	d.end = len(d.data)
-	return iterator.New(d.data)
+	i = iterator.New(d.data)
+	d.mutex.Unlock()
+	return i
 }
 
 //@title    Size
@@ -85,7 +94,7 @@ func (d *deque) Iterator() (i *iterator.Iterator) {
 //@return    	d        	*deque					接收者的deque指针
 //@param    	nil
 //@return    	num        	int						容器中实际使用元素所占空间大小
-func (d *deque) Size() int {
+func (d *deque) Size() (num int) {
 	if d == nil {
 		return -1
 	}
@@ -105,9 +114,11 @@ func (d *deque) Clear() {
 	if d == nil {
 		return
 	}
+	d.mutex.Lock()
 	d.data = d.data[0:0]
 	d.begin = 0
 	d.end = 0
+	d.mutex.Unlock()
 }
 
 //@title    Empty
@@ -145,6 +156,7 @@ func (d *deque) PushFront(e interface{}) {
 	if d == nil {
 		return
 	}
+	d.mutex.Lock()
 	if d.begin > 0 {
 		d.begin--
 		d.data[d.begin] = e
@@ -153,6 +165,7 @@ func (d *deque) PushFront(e interface{}) {
 		d.begin = 0
 		d.end = len(d.data)
 	}
+	d.mutex.Unlock()
 }
 
 //@title    PushBack
@@ -169,12 +182,14 @@ func (d *deque) PushBack(e interface{}) {
 	if d == nil {
 		return
 	}
+	d.mutex.Lock()
 	if d.end < len(d.data) {
 		d.data[d.end] = e
 	} else {
 		d.data = append(d.data, e)
 	}
 	d.end++
+	d.mutex.Unlock()
 }
 
 //@title    PopFront
@@ -194,12 +209,14 @@ func (d *deque) PopFront() {
 	if d.Empty() {
 		return
 	}
+	d.mutex.Lock()
 	d.begin++
 	if d.begin*2 >= d.end {
 		d.data = d.data[d.begin:d.end]
 		d.begin = 0
 		d.end = len(d.data)
 	}
+	d.mutex.Unlock()
 }
 
 //@title    PopBack
@@ -219,12 +236,14 @@ func (d *deque) PopBack() {
 	if d.Empty() {
 		return
 	}
+	d.mutex.Lock()
 	d.end--
 	if d.begin*2 >= d.end {
 		d.data = d.data[d.begin:d.end]
 		d.begin = 0
 		d.end = len(d.data)
 	}
+	d.mutex.Unlock()
 }
 
 //@title    Front
@@ -243,7 +262,10 @@ func (d *deque) Front() (e interface{}) {
 	if d.Empty() {
 		return nil
 	}
-	return d.data[d.begin]
+	d.mutex.Lock()
+	e = d.data[d.begin]
+	d.mutex.Unlock()
+	return e
 }
 
 //@title    Back
@@ -262,5 +284,8 @@ func (d *deque) Back() (e interface{}) {
 	if d.Empty() {
 		return nil
 	}
-	return d.data[d.end-1]
+	d.mutex.Lock()
+	e = d.data[d.end-1]
+	d.mutex.Unlock()
+	return e
 }

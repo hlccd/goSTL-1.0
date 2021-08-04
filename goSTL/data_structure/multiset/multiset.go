@@ -9,18 +9,21 @@ package multiset
 //		该集合只能对于相等元素可以存储多个
 //		可接纳不同类型的元素,但为了便于比较,建议使用同一个类型
 //@author     	hlccd		2021-07-9
+//@update		hlccd 		2021-08-01		增加互斥锁实现并发控制
 import (
 	"github.com/hlccd/goSTL/algorithm"
 	"github.com/hlccd/goSTL/utils/comparator"
 	"github.com/hlccd/goSTL/utils/iterator"
+	"sync"
 )
 
 //multiset可重复集合结构体
 //包含泛型切片和比较器
 //增删节点后会使用比较器保持该切片数组的有序性
 type multiset struct {
-	data []interface{}         //泛型切片
-	cmp  comparator.Comparator //该可重复集合的比较器
+	data  []interface{}         //泛型切片
+	cmp   comparator.Comparator //该可重复集合的比较器
+	mutex sync.Mutex            //并发控制锁
 }
 
 //multiset可重复集合容器接口
@@ -54,8 +57,9 @@ func New(Cmp ...comparator.Comparator) (ms *multiset) {
 		cmp = Cmp[0]
 	}
 	return &multiset{
-		data: make([]interface{}, 0, 0),
-		cmp:  cmp,
+		data:  make([]interface{}, 0, 0),
+		cmp:   cmp,
+		mutex: sync.Mutex{},
 	}
 }
 
@@ -67,11 +71,14 @@ func New(Cmp ...comparator.Comparator) (ms *multiset) {
 //@receiver		ms			*multiset				接受者multiset的指针
 //@param    	nil
 //@return    	i        	*iterator.Iterator		新建的Iterator迭代器指针
-func (ms *multiset) Iterator() *iterator.Iterator {
+func (ms *multiset) Iterator() (i *iterator.Iterator) {
 	if ms == nil {
 		return iterator.New(make([]interface{}, 0, 0))
 	}
-	return iterator.New(ms.data)
+	ms.mutex.Lock()
+	i = iterator.New(ms.data)
+	ms.mutex.Unlock()
+	return i
 }
 
 //@title    Size
@@ -102,7 +109,9 @@ func (ms *multiset) Clear() {
 	if ms == nil {
 		return
 	}
+	ms.mutex.Lock()
 	ms.data = ms.data[0:0]
+	ms.mutex.Unlock()
 }
 
 //@title    Empty
@@ -136,6 +145,7 @@ func (ms *multiset) Insert(e interface{}) {
 	if ms == nil {
 		return
 	}
+	ms.mutex.Lock()
 	if ms.Empty() {
 		ms.data = append(ms.data, e)
 	} else {
@@ -158,6 +168,7 @@ func (ms *multiset) Insert(e interface{}) {
 			ms.data = append(append(ms.data[:p], e), es...)
 		}
 	}
+	ms.mutex.Unlock()
 }
 
 //@title    Erase
@@ -172,6 +183,7 @@ func (ms *multiset) Erase(e interface{}) {
 	if ms == nil {
 		return
 	}
+	ms.mutex.Lock()
 	p := algorithm.Search(ms.Iterator().Begin(), ms.Iterator().End(), e, ms.cmp)
 	if p != -1 {
 		if len(ms.data) == 1 {
@@ -185,6 +197,7 @@ func (ms *multiset) Erase(e interface{}) {
 			}
 		}
 	}
+	ms.mutex.Unlock()
 }
 
 //@title    Count
@@ -199,6 +212,7 @@ func (ms *multiset) Count(e interface{}) (num int) {
 	if ms == nil {
 		return 0
 	}
+	ms.mutex.Lock()
 	upper := algorithm.UpperBound(ms.Iterator().Begin(), ms.Iterator().End(), e, ms.cmp)
 	if e != ms.data[upper] {
 		return 0
@@ -208,6 +222,7 @@ func (ms *multiset) Count(e interface{}) (num int) {
 	if num <= 0 {
 		num = 0
 	}
+	ms.mutex.Unlock()
 	return num
 }
 
@@ -224,9 +239,12 @@ func (ms *multiset) Find(e interface{}) (i *iterator.Iterator) {
 	if ms == nil {
 		return nil
 	}
+	ms.mutex.Lock()
 	p := algorithm.Search(ms.Iterator().Begin(), ms.Iterator().End(), e, ms.cmp)
 	if p != -1 {
+		ms.mutex.Unlock()
 		return ms.Iterator().Get(p)
 	}
+	ms.mutex.Unlock()
 	return nil
 }

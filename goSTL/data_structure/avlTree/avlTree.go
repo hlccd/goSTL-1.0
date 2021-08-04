@@ -9,10 +9,12 @@ package avlTree
 //		若节点可重复则增加节点中的数值,否则对节点存储元素进行覆盖
 //		平衡二叉树在添加和删除时都将对节点进行平衡,以保证一个节点的左右子节点高度差不超过1
 //@author     	hlccd		2021-07-18
+//@update		hlccd 		2021-08-01		增加互斥锁实现并发控制
 
 import (
 	"github.com/hlccd/goSTL/utils/comparator"
 	"github.com/hlccd/goSTL/utils/iterator"
+	"sync"
 )
 
 //avlTree平衡二叉树结构体
@@ -25,6 +27,7 @@ type avlTree struct {
 	size    int                   //存储元素数量
 	cmp     comparator.Comparator //比较器
 	isMulti bool                  //是否允许重复
+	mutex   sync.Mutex            //并发控制锁
 }
 
 //avlTree平衡二叉树容器接口
@@ -80,7 +83,10 @@ func (avl *avlTree) Iterator() (i *iterator.Iterator) {
 	if avl == nil {
 		return iterator.New(make([]interface{}, 0, 0))
 	}
-	return iterator.New(avl.root.inOrder())
+	avl.mutex.Lock()
+	i = iterator.New(avl.root.inOrder())
+	avl.mutex.Unlock()
+	return i
 }
 
 //@title    Size
@@ -112,8 +118,10 @@ func (avl *avlTree) Clear() {
 	if avl == nil {
 		return
 	}
+	avl.mutex.Lock()
 	avl.root = nil
 	avl.size = 0
+	avl.mutex.Unlock()
 }
 
 //@title    Empty
@@ -148,16 +156,21 @@ func (avl *avlTree) Empty() (b bool) {
 //@param    	e			interface{}				待插入元素
 //@return    	nil
 func (avl *avlTree) Insert(e interface{}) {
-	if avl.cmp == nil {
-		avl.cmp = comparator.GetCmp(e)
-	}
-	if avl.cmp == nil {
+	if avl == nil {
 		return
 	}
+	avl.mutex.Lock()
 	if avl.Empty() {
+		if avl.cmp == nil {
+			avl.cmp = comparator.GetCmp(e)
+		}
+		if avl.cmp == nil {
+			return
+		}
 		//二叉树为空,用根节点承载元素e
 		avl.root = newNode(e)
 		avl.size = 1
+		avl.mutex.Unlock()
 		return
 	}
 	//从根节点进行插入,并返回节点,同时返回是否插入成功
@@ -167,6 +180,7 @@ func (avl *avlTree) Insert(e interface{}) {
 		//插入成功,数量+1
 		avl.size++
 	}
+	avl.mutex.Unlock()
 }
 
 //@title    Erase
@@ -181,13 +195,18 @@ func (avl *avlTree) Insert(e interface{}) {
 //@param    	e			interface{}				待删除元素
 //@return    	nil
 func (avl *avlTree) Erase(e interface{}) {
+	if avl == nil {
+		return
+	}
 	if avl.Empty() {
 		return
 	}
+	avl.mutex.Lock()
 	if avl.size == 1 && avl.cmp(avl.root.value, e) == 0 {
 		//二叉树仅持有一个元素且根节点等价于待删除元素,将二叉树根节点置为nil
 		avl.root = nil
 		avl.size = 0
+		avl.mutex.Unlock()
 		return
 	}
 	//从根节点进行插入,并返回节点,同时返回是否删除成功
@@ -196,6 +215,7 @@ func (avl *avlTree) Erase(e interface{}) {
 	if b {
 		avl.size--
 	}
+	avl.mutex.Unlock()
 }
 
 //@title    Count
@@ -217,5 +237,8 @@ func (avl *avlTree) Count(e interface{}) (num int) {
 	if avl.Empty() {
 		return 0
 	}
-	return avl.root.search(e, avl.isMulti, avl.cmp)
+	avl.mutex.Lock()
+	num = avl.root.search(e, avl.isMulti, avl.cmp)
+	avl.mutex.Unlock()
+	return num
 }

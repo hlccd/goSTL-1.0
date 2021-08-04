@@ -8,8 +8,12 @@ package queue
 //		该容器满足FIFO的先进先出模式
 //		可接纳不同类型的元素
 //@author     	hlccd		2021-07-5
+//@update		hlccd 		2021-08-01		增加互斥锁实现并发控制
 
-import "github.com/hlccd/goSTL/utils/iterator"
+import (
+	"github.com/hlccd/goSTL/utils/iterator"
+	"sync"
+)
 
 //queue队列结构体
 //包含泛型切片和该切片的首尾指针
@@ -22,6 +26,7 @@ type queue struct {
 	data  []interface{} //泛型切片
 	begin int           //首节点指针
 	end   int           //尾节点指针
+	mutex sync.Mutex    //并发控制锁
 }
 
 //queue队列容器接口
@@ -53,6 +58,7 @@ func New() (q *queue) {
 		data:  make([]interface{}, 0, 0),
 		begin: 0,
 		end:   0,
+		mutex: sync.Mutex{},
 	}
 }
 
@@ -69,10 +75,13 @@ func (q *queue) Iterator() (i *iterator.Iterator) {
 	if q == nil {
 		return iterator.New(make([]interface{}, 0, 0))
 	}
+	q.mutex.Lock()
 	q.data = q.data[q.begin:q.end]
 	q.begin = 0
 	q.end = len(q.data)
-	return iterator.New(q.data)
+	i = iterator.New(q.data)
+	q.mutex.Unlock()
+	return i
 }
 
 //@title    Size
@@ -105,9 +114,11 @@ func (q *queue) Clear() {
 	if q == nil {
 		return
 	}
+	q.mutex.Lock()
 	q.data = q.data[0:0]
 	q.begin = 0
 	q.end = 0
+	q.mutex.Unlock()
 }
 
 //@title    Empty
@@ -145,12 +156,14 @@ func (q *queue) Push(e interface{}) {
 	if q == nil {
 		return
 	}
+	q.mutex.Lock()
 	if q.end < len(q.data) {
 		q.data[q.end] = e
 	} else {
 		q.data = append(q.data, e)
 	}
 	q.end++
+	q.mutex.Unlock()
 }
 
 //@title    Pop
@@ -170,12 +183,14 @@ func (q *queue) Pop() {
 	if q.Empty() {
 		return
 	}
+	q.mutex.Lock()
 	q.begin++
 	if q.begin*2 >= q.end {
 		q.data = q.data[q.begin:q.end]
 		q.begin = 0
 		q.end = len(q.data)
 	}
+	q.mutex.Unlock()
 }
 
 //@title    Front
@@ -194,7 +209,10 @@ func (q *queue) Front() (e interface{}) {
 	if q.Empty() {
 		return nil
 	}
-	return q.data[q.begin]
+	q.mutex.Lock()
+	e = q.data[q.begin]
+	q.mutex.Unlock()
+	return e
 }
 
 //@title    Back
@@ -213,5 +231,8 @@ func (q *queue) Back() (e interface{}) {
 	if q.Empty() {
 		return nil
 	}
-	return q.data[q.end-1]
+	q.mutex.Lock()
+	e = q.data[q.end-1]
+	q.mutex.Unlock()
+	return e
 }

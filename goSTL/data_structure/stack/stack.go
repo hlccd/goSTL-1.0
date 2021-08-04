@@ -8,7 +8,11 @@ package stack
 //		通过interface实现泛型
 //		可接纳不同类型的元素
 //@author     	hlccd		2021-07-7
-import "github.com/hlccd/goSTL/utils/iterator"
+//@update		hlccd 		2021-08-01		增加互斥锁实现并发控制
+import (
+	"github.com/hlccd/goSTL/utils/iterator"
+	"sync"
+)
 
 //vector向量结构体
 //包含泛型切片和该切片的顶部指针
@@ -17,8 +21,9 @@ import "github.com/hlccd/goSTL/utils/iterator"
 //当添加节点时若未占满全部已分配空间则顶部指针后移一位同时进行覆盖存放
 //当添加节点时顶部指针大于已分配空间长度,则新增空间
 type stack struct {
-	data []interface{} //泛型切片
-	top  int           //顶部指针
+	data  []interface{} //泛型切片
+	top   int           //顶部指针
+	mutex sync.Mutex    //并发控制锁
 }
 
 //stack栈容器接口
@@ -45,8 +50,9 @@ type stacker interface {
 //@return    	s        	*stack					新建的stack指针
 func New() (s *stack) {
 	return &stack{
-		data: make([]interface{}, 0, 0),
-		top:  0,
+		data:  make([]interface{}, 0, 0),
+		top:   0,
+		mutex: sync.Mutex{},
 	}
 }
 
@@ -63,8 +69,11 @@ func (s *stack) Iterator() (i *iterator.Iterator) {
 	if s == nil {
 		return iterator.New(make([]interface{}, 0, 0))
 	}
+	s.mutex.Lock()
 	s.data = s.data[:s.top]
-	return iterator.New(s.data)
+	i = iterator.New(s.data)
+	s.mutex.Unlock()
+	return i
 }
 
 //@title    Size
@@ -97,8 +106,10 @@ func (s *stack) Clear() {
 	if s == nil {
 		return
 	}
+	s.mutex.Lock()
 	s.data = s.data[0:0]
 	s.top = 0
+	s.mutex.Unlock()
 }
 
 //@title    Empty
@@ -136,12 +147,14 @@ func (s *stack) Push(e interface{}) {
 	if s == nil {
 		return
 	}
+	s.mutex.Lock()
 	if s.top < len(s.data) {
 		s.data[s.top] = e
 	} else {
 		s.data = append(s.data, e)
 	}
 	s.top++
+	s.mutex.Unlock()
 }
 
 //@title    Pop
@@ -161,10 +174,12 @@ func (s *stack) Pop() {
 	if s.Empty() {
 		return
 	}
+	s.mutex.Lock()
 	s.top--
 	if s.top*2 <= len(s.data) {
 		s.data = s.data[0:s.top]
 	}
+	s.mutex.Unlock()
 }
 
 //@title    Top
@@ -183,5 +198,8 @@ func (s *stack) Top() (e interface{}) {
 	if s.Empty() {
 		return nil
 	}
-	return s.data[s.top-1]
+	s.mutex.Lock()
+	e = s.data[s.top-1]
+	s.mutex.Unlock()
+	return e
 }

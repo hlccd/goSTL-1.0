@@ -7,7 +7,11 @@ package ring
 //		该容器可以在当前节点实现线性增减元素
 //		可接纳不同类型的元素
 //@author     	hlccd		2021-07-8
-import "github.com/hlccd/goSTL/utils/iterator"
+//@update		hlccd 		2021-08-01		增加互斥锁实现并发控制
+import (
+	"github.com/hlccd/goSTL/utils/iterator"
+	"sync"
+)
 
 //ring环结构体
 //包含泛型切片和该切片的当前位置指针
@@ -15,6 +19,7 @@ import "github.com/hlccd/goSTL/utils/iterator"
 type ring struct {
 	data  []interface{} //泛型切片
 	index int           //当前节点指针
+	mutex sync.Mutex    //并发控制锁
 }
 
 //ring环容器接口
@@ -45,6 +50,7 @@ func New() (r *ring) {
 	return &ring{
 		data:  make([]interface{}, 0, 0),
 		index: 0,
+		mutex: sync.Mutex{},
 	}
 }
 
@@ -64,7 +70,10 @@ func (r *ring) Iterator() (i *iterator.Iterator) {
 	if r.Empty() {
 		return iterator.New(make([]interface{}, 0, 0))
 	}
-	return iterator.New(append(r.data[r.index:], r.data[:r.index]...))
+	r.mutex.Lock()
+	i = iterator.New(append(r.data[r.index:], r.data[:r.index]...))
+	r.mutex.Unlock()
+	return i
 }
 
 //@title    Size
@@ -96,8 +105,10 @@ func (r *ring) Clear() {
 	if r == nil {
 		return
 	}
+	r.mutex.Lock()
 	r.data = r.data[0:0]
 	r.index = -1
+	r.mutex.Unlock()
 }
 
 //@title    Empty
@@ -131,12 +142,14 @@ func (r *ring) Insert(e interface{}) {
 	if r == nil {
 		return
 	}
+	r.mutex.Lock()
 	if r.index < r.Size()-1 {
 		es := append([]interface{}{}, r.data[r.index+1:]...)
 		r.data = append(append(r.data[:r.index+1], e), es...)
 	} else {
 		r.data = append(r.data, e)
 	}
+	r.mutex.Unlock()
 }
 
 //@title    Erase
@@ -155,6 +168,7 @@ func (r *ring) Erase() {
 	if r.Empty() {
 		return
 	}
+	r.mutex.Lock()
 	if r.index == 0 {
 		r.data = r.data[1:]
 	} else if r.index == r.Size()-1 {
@@ -164,6 +178,7 @@ func (r *ring) Erase() {
 		es := append([]interface{}{}, r.data[:r.index]...)
 		r.data = append(es, r.data[r.index+1:]...)
 	}
+	r.mutex.Unlock()
 }
 
 //@title    Next
@@ -182,7 +197,9 @@ func (r *ring) Next() {
 	if r.Empty() {
 		return
 	}
+	r.mutex.Lock()
 	r.index = (r.index + 1) % r.Size()
+	r.mutex.Unlock()
 }
 
 //@title    Pre
@@ -201,7 +218,9 @@ func (r *ring) Pre() {
 	if r.Empty() {
 		return
 	}
+	r.mutex.Lock()
 	r.index = (r.index - 1 + r.Size()) % r.Size()
+	r.mutex.Unlock()
 }
 
 //@title    Value
@@ -221,5 +240,8 @@ func (r *ring) Value() (e interface{}) {
 	if r.Empty() {
 		return nil
 	}
-	return r.data[r.index]
+	r.mutex.Lock()
+	e = r.data[r.index]
+	r.mutex.Unlock()
+	return e
 }
