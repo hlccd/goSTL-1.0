@@ -155,6 +155,7 @@ func (cb *cbTree) Push(e interface{}) {
 			cb.cmp = comparator.GetCmp(e)
 		}
 		if cb.cmp == nil {
+			cb.mutex.Unlock()
 			return
 		}
 		cb.root = newNode(nil, e)

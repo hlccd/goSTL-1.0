@@ -165,6 +165,7 @@ func (rb *rbTree) Insert(e interface{}) {
 			rb.cmp = comparator.GetCmp(e)
 		}
 		if rb.cmp == nil {
+			rb.mutex.Unlock()
 			return
 		}
 		//红黑树为空,用根节点承载元素e

@@ -173,6 +173,7 @@ func (t *treap) Insert(e interface{}) {
 			t.cmp = comparator.GetCmp(e)
 		}
 		if t.cmp == nil {
+			t.mutex.Unlock()
 			return
 		}
 		//插入到根节点

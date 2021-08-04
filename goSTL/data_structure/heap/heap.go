@@ -148,6 +148,7 @@ func (h *heap) Push(e interface{}) {
 		h.cmp = comparator.GetCmp(e)
 	}
 	if h.cmp == nil {
+		h.mutex.Unlock()
 		return
 	}
 	h.data = append(h.data, e)
@@ -188,11 +189,13 @@ func (h *heap) Pop() {
 	}
 	h.mutex.Lock()
 	if h.Empty() {
+		h.mutex.Unlock()
 		return
 	}
 	h.data[0] = h.data[h.Size()-1]
 	h.data = h.data[:h.Size()-1]
 	if h.Empty() {
+		h.mutex.Unlock()
 		return
 	}
 	h.down(0)

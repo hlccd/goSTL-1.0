@@ -331,9 +331,10 @@ func (n *node) insertAdjust() {
 				n = n.parent
 				n.color = BLACK
 				n = n.parent
-				n.color = RED
-				n.rightRotate()
-
+				if n!=nil{
+					n.color = RED
+					n.rightRotate()
+				}
 			} else {
 				//该部分原因同上
 				if n == n.parent.left {
@@ -343,8 +344,10 @@ func (n *node) insertAdjust() {
 				n = n.parent
 				n.color = BLACK
 				n = n.parent
-				n.color = RED
-				n.leftRotate()
+				if n!=nil{
+					n.color = RED
+					n.leftRotate()
+				}
 			}
 			return
 		}

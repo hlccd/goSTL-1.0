@@ -167,6 +167,7 @@ func (bs *bsTree) Insert(e interface{}) {
 			bs.cmp = comparator.GetCmp(e)
 		}
 		if bs.cmp == nil {
+			bs.mutex.Unlock()
 			return
 		}
 		bs.root = newNode(e)
