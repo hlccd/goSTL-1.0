@@ -38,8 +38,8 @@ type dequeer interface {
 	Empty() (b bool)              //判断该双向队列是否为空
 	PushFront(e interface{})      //将元素e添加到该队列首部
 	PushBack(e interface{})       //将元素e添加到该队列末尾
-	PopFront()                    //将该队列首元素弹出
-	PopBack()                     //将该队列尾元素弹出
+	PopFront() (e interface{})    //将该队列首元素弹出并返回
+	PopBack() (e interface{})     //将该队列尾元素弹出并返回
 	Front() (e interface{})       //获取该队列首元素
 	Back() (e interface{})        //获取该队列尾元素
 }
@@ -201,15 +201,16 @@ func (d *deque) PushBack(e interface{}) {
 //@auth      	hlccd		2021-07-6
 //@return    	d        	*deque					接收者的deque指针
 //@param    	nil
-//@return    	nil
-func (d *deque) PopFront() {
+//@return    	e 			interface{}				队尾元素
+func (d *deque) PopFront() (e interface{}) {
 	if d == nil {
-		return
+		return nil
 	}
 	if d.Empty() {
-		return
+		return nil
 	}
 	d.mutex.Lock()
+	e = d.data[d.begin]
 	d.begin++
 	if d.begin*2 >= d.end {
 		d.data = d.data[d.begin:d.end]
@@ -217,6 +218,7 @@ func (d *deque) PopFront() {
 		d.end = len(d.data)
 	}
 	d.mutex.Unlock()
+	return e
 }
 
 //@title    PopBack
@@ -228,22 +230,24 @@ func (d *deque) PopFront() {
 //@auth      	hlccd		2021-07-6
 //@return    	d        	*deque					接收者的deque指针
 //@param    	nil
-//@return    	nil
-func (d *deque) PopBack() {
+//@return    	e 			interface{}				队首元素
+func (d *deque) PopBack() (e interface{}) {
 	if d == nil {
-		return
+		return nil
 	}
 	if d.Empty() {
-		return
+		return nil
 	}
 	d.mutex.Lock()
 	d.end--
+	e = d.data[d.end]
 	if d.begin*2 >= d.end {
 		d.data = d.data[d.begin:d.end]
 		d.begin = 0
 		d.end = len(d.data)
 	}
 	d.mutex.Unlock()
+	return e
 }
 
 //@title    Front

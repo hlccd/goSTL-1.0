@@ -2,6 +2,7 @@ package set
 
 //@Title		set
 //@Description
+//		线程不安全,不建议使用
 //		set集合容器包
 //		以切片数组的形式实现
 //		该容器可以增减元素后依然保持整体有序
@@ -147,30 +148,33 @@ func (s *set) Insert(e interface{}) {
 	}
 	s.mutex.Lock()
 	if s.Empty() {
-		s.data = append(s.data, e)
-	} else {
 		if s.cmp == nil {
 			s.cmp = comparator.GetCmp(e)
 		}
 		if s.cmp == nil {
+			s.mutex.Unlock()
 			return
 		}
-		begin := s.Iterator().Begin()
-		end := s.Iterator().End()
-		p := algorithm.LowerBound(begin, end, e, s.cmp)
-		if s.data[p] == e {
-			return
-		} else {
-			if p == len(s.data)-1 {
-				s.data = append(s.data, e)
-			} else if p == 0 {
-				es := append([]interface{}{}, e)
-				s.data = append(es, s.data...)
-			} else {
-				es := append([]interface{}{}, s.data[p:]...)
-				s.data = append(append(s.data[:p], e), es...)
-			}
-		}
+		s.data = append(s.data, e)
+		s.mutex.Unlock()
+		return
+	}
+	i:=iterator.New(s.data)
+	begin := i.Begin()
+	end := i.End()
+	p := algorithm.LowerBound(begin, end, e, s.cmp)
+	if s.data[p] == e {
+		s.mutex.Unlock()
+		return
+	}
+	if p == len(s.data)-1 {
+		s.data = append(s.data, e)
+	} else if p == 0 {
+		es := append([]interface{}{}, e)
+		s.data = append(es, s.data...)
+	} else {
+		es := append([]interface{}{}, s.data[p:]...)
+		s.data = append(append(s.data[:p], e), es...)
 	}
 	s.mutex.Unlock()
 }
@@ -188,7 +192,8 @@ func (s *set) Erase(e interface{}) {
 		return
 	}
 	s.mutex.Lock()
-	p := algorithm.Search(s.Iterator().Begin(), s.Iterator().End(), e, s.cmp)
+	i:=iterator.New(s.data)
+	p := algorithm.Search(i.Begin(), i.End(), e, s.cmp)
 	if p != -1 {
 		if len(s.data) == 1 {
 			s.Clear()

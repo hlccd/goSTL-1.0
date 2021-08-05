@@ -2,6 +2,7 @@ package multiset
 
 //@Title		multiset
 //@Description
+//		线程不安全,不建议使用
 //		multiset可重复集合容器包
 //		以切片数组的形式实现
 //		该容器可以增减元素后依然保持整体有序

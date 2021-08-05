@@ -39,7 +39,7 @@ type queuer interface {
 	Clear()                       //清空该队列
 	Empty() (b bool)              //判断该队列是否为空
 	Push(e interface{})           //将元素e添加到该队列末尾
-	Pop()                         //将该队列首元素弹出
+	Pop() (e interface{})         //将该队列首元素弹出并返回
 	Front() (e interface{})       //获取该队列首元素
 	Back() (e interface{})        //获取该队列尾元素
 }
@@ -172,18 +172,20 @@ func (q *queue) Push(e interface{}) {
 //		弹出容器第一个元素,同时首指针后移一位
 //		当剩余元素数量小于容器切片实际使用空间的一半时,重新分配空间释放未使用部分
 //		若容器为空,则不进行弹出
+//		同时返回队首元素
 //@auth      	hlccd		2021-07-5
 //@receiver		q			*queue					接受者queue的指针
 //@param    	nil
-//@return    	nil
-func (q *queue) Pop() {
+//@return    	e 			interface{}				队首元素
+func (q *queue) Pop() (e interface{}) {
 	if q == nil {
-		return
+		return nil
 	}
 	if q.Empty() {
-		return
+		return nil
 	}
 	q.mutex.Lock()
+	e = q.data[q.begin]
 	q.begin++
 	if q.begin*2 >= q.end {
 		q.data = q.data[q.begin:q.end]
@@ -191,6 +193,7 @@ func (q *queue) Pop() {
 		q.end = len(q.data)
 	}
 	q.mutex.Unlock()
+	return e
 }
 
 //@title    Front
