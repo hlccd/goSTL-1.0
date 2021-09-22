@@ -16,12 +16,12 @@ import (
 	"sync"
 )
 
-//rbTree红黑树结构体
+//RBTree红黑树结构体
 //该实例存储二叉树的根节点
 //同时保存该二叉树已经存储了多少个元素
 //二叉树中排序使用的比较器在创建时传入,若不传入则在插入首个节点时从默认比较器中寻找
 //创建时传入是否允许该二叉树出现重复值,如果不允许则进行覆盖,允许则对节点数目增加即可
-type rbTree struct {
+type RBTree struct {
 	root    *node
 	size    int
 	cmp     comparator.Comparator
@@ -29,8 +29,8 @@ type rbTree struct {
 	mutex   sync.Mutex //并发控制锁
 }
 
-//rbTree红黑树容器接口
-//存放了rbTree红黑树可使用的函数
+//RBTree红黑树容器接口
+//存放了RBTree红黑树可使用的函数
 //对应函数介绍见下方
 type rbTreeer interface {
 	Iterator() (i *iterator.Iterator) //返回包含该红黑树的所有元素,重复则返回多个
@@ -44,16 +44,16 @@ type rbTreeer interface {
 
 //@title    New
 //@description
-//		新建一个rbTree红黑树容器并返回
+//		新建一个RBTree红黑树容器并返回
 //		初始根节点为nil
 //		传入该红黑树是否为可重复属性,如果为true则保存重复值,否则对原有相等元素进行覆盖
 //		若有传入的比较器,则将传入的第一个比较器设为该二叉树的比较器
 //@author     	hlccd		2021-07-11
 //@receiver		nil
 //@param    	isMulti		bool						该二叉树是否保存重复值?
-//@param    	Cmp			 ...comparator.Comparator	rbTree比较器集
-//@return    	rb        	*rbTree						新建的rbTree指针
-func New(isMulti bool, cmps ...comparator.Comparator) (rb *rbTree) {
+//@param    	Cmp			 ...comparator.Comparator	RBTree比较器集
+//@return    	rb        	*RBTree						新建的RBTree指针
+func New(isMulti bool, cmps ...comparator.Comparator) (rb *RBTree) {
 	//判断是否有传入比较器,若有则设为该红黑树默认比较器
 	var cmp comparator.Comparator
 	if len(cmps) == 0 {
@@ -61,7 +61,7 @@ func New(isMulti bool, cmps ...comparator.Comparator) (rb *rbTree) {
 	} else {
 		cmp = cmps[0]
 	}
-	return &rbTree{
+	return &RBTree{
 		root:    nil,
 		size:    0,
 		cmp:     cmp,
@@ -72,14 +72,14 @@ func New(isMulti bool, cmps ...comparator.Comparator) (rb *rbTree) {
 
 //@title    Iterator
 //@description
-//		以rbTree红黑搜索树做接收者
+//		以RBTree红黑搜索树做接收者
 //		将该红黑树中所有保存的元素将从根节点开始以中缀序列的形式放入迭代器中
 //		若允许重复存储则对于重复元素进行多次放入
 //@auth      	hlccd		2021-07-23
-//@receiver		rb			*rbTree					接受者rbTree的指针
+//@receiver		rb			*RBTree					接受者RBTree的指针
 //@param    	nil
 //@return    	i        	*iterator.Iterator		新建的Iterator迭代器指针
-func (rb *rbTree) Iterator() (i *iterator.Iterator) {
+func (rb *RBTree) Iterator() (i *iterator.Iterator) {
 	if rb == nil {
 		return iterator.New(make([]interface{}, 0, 0))
 	}
@@ -91,14 +91,14 @@ func (rb *rbTree) Iterator() (i *iterator.Iterator) {
 
 //@title    Size
 //@description
-//		以rbTree红黑搜索树做接收者
+//		以RBTree红黑搜索树做接收者
 //		返回该容器当前含有元素的数量
 //		如果容器为nil返回-1
 //@auth      	hlccd		2021-07-23
-//@receiver		rb			*rbTree					接受者rbTree的指针
+//@receiver		rb			*RBTree					接受者RBTree的指针
 //@param    	nil
 //@return    	num        	int						容器中实际使用元素所占空间大小
-func (rb *rbTree) Size() (num int) {
+func (rb *RBTree) Size() (num int) {
 	if rb == nil {
 		return -1
 	}
@@ -107,14 +107,14 @@ func (rb *rbTree) Size() (num int) {
 
 //@title    Clear
 //@description
-//		以rbTree红黑搜索树做接收者
+//		以RBTree红黑搜索树做接收者
 //		将该容器中所承载的元素清空
 //		将该容器的size置0
 //@auth      	hlccd		2021-07-23
-//@receiver		rb			*rbTree					接受者rbTree的指针
+//@receiver		rb			*RBTree					接受者RBTree的指针
 //@param    	nil
 //@return    	nil
-func (rb *rbTree) Clear() {
+func (rb *RBTree) Clear() {
 	if rb == nil {
 		return
 	}
@@ -126,16 +126,16 @@ func (rb *rbTree) Clear() {
 
 //@title    Empty
 //@description
-//		以rbTree红黑搜索树做接收者
+//		以RBTree红黑搜索树做接收者
 //		判断该红黑树是否含有元素
 //		如果含有元素则不为空,返回false
 //		如果不含有元素则说明为空,返回true
 //		如果容器不存在,返回true
 //@auth      	hlccd		2021-07-23
-//@receiver		rb			*rbTree					接受者rbTree的指针
+//@receiver		rb			*RBTree					接受者RBTree的指针
 //@param    	nil
 //@return    	b			bool					该容器是空的吗?
-func (rb *rbTree) Empty() (b bool) {
+func (rb *RBTree) Empty() (b bool) {
 	if rb == nil {
 		return true
 	}
@@ -147,15 +147,15 @@ func (rb *rbTree) Empty() (b bool) {
 
 //@title    Insert
 //@description
-//		以rbTree红黑搜索树做接收者
+//		以RBTree红黑搜索树做接收者
 //		向红黑树插入元素e,若不允许重复则对相等元素进行覆盖
 //		如果红黑树为空则之间用根节点承载元素e,否则以根节点开始进行查找
 //		不做平衡
 //@auth      	hlccd		2021-07-23
-//@receiver		rb			*rbTree					接受者rbTree的指针
+//@receiver		rb			*RBTree					接受者RBTree的指针
 //@param    	e			interface{}				待插入元素
 //@return    	nil
-func (rb *rbTree) Insert(e interface{}) {
+func (rb *RBTree) Insert(e interface{}) {
 	if rb == nil {
 		return
 	}
@@ -183,16 +183,16 @@ func (rb *rbTree) Insert(e interface{}) {
 
 //@title    Erase
 //@description
-//		以rbTree红黑搜索树做接收者
+//		以RBTree红黑搜索树做接收者
 //		从搜素红黑树中删除元素e
 //		若允许重复记录则对承载元素e的节点中数量记录减一即可
 //		若不允许重复记录则删除该节点同时将前缀节点或后继节点更换过来以保证二叉树的不发送断裂
 //		如果该红黑树仅持有一个元素且根节点等价于待删除元素,则将红黑树根节点置为nil
 //@auth      	hlccd		2021-07-23
-//@receiver		rb			*rbTree					接受者rbTree的指针
+//@receiver		rb			*RBTree					接受者RBTree的指针
 //@param    	e			interface{}				待删除元素
 //@return    	nil
-func (rb *rbTree) Erase(e interface{}) {
+func (rb *RBTree) Erase(e interface{}) {
 	if rb == nil {
 		return
 	}
@@ -217,16 +217,16 @@ func (rb *rbTree) Erase(e interface{}) {
 
 //@title    Count
 //@description
-//		以rbTree红黑搜索树做接收者
+//		以RBTree红黑搜索树做接收者
 //		从红黑树中查找元素e的个数
 //		如果找到则返回该二叉树中和元素e相同元素的个数
 //		如果不允许重复则最多返回1
 //		如果未找到则返回0
 //@auth      	hlccd		2021-07-23
-//@receiver		rb			*rbTree					接受者rbTree的指针
+//@receiver		rb			*RBTree					接受者RBTree的指针
 //@param    	e			interface{}				待查找元素
 //@return    	num			int						待查找元素在二叉树中存储的个数
-func (rb *rbTree) Count(e interface{}) (num int) {
+func (rb *RBTree) Count(e interface{}) (num int) {
 	if rb == nil {
 		return 0
 	}
@@ -237,4 +237,38 @@ func (rb *rbTree) Count(e interface{}) (num int) {
 	num = rb.root.search(e, rb.cmp)
 	rb.mutex.Unlock()
 	return num
+}
+
+func (rb *RBTree) Find(e interface{}) (ans interface{}) {
+	if rb == nil {
+		return 0
+	}
+	if rb.Empty() {
+		return 0
+	}
+	rb.mutex.Lock()
+	n := rb.root
+	ans=nil
+	for n!=nil{
+		if rb.cmp(n.value,e)>0{
+			if n.left!=nil{
+				n=n.left
+			}else {
+				ans=nil
+				break
+			}
+		}else if rb.cmp(n.value,e)<0{
+			if n.right!=nil{
+				n=n.right
+			}else {
+				ans=nil
+				break
+			}
+		}else{
+			ans=n.value
+			break
+		}
+	}
+	rb.mutex.Unlock()
+	return ans
 }
